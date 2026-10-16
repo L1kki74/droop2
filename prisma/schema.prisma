@@ -1,0 +1,142 @@
+// Prisma schema for PuzoDrop
+// Запусти: npx prisma db push
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // Для старта. Потом можно заменить на postgresql
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  balance       Float     @default(0)
+  steamTradeUrl String?
+  referralCode  String    @unique
+  referredById  String?
+  isAdmin       Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  inventory     InventoryItem[]
+  transactions  Transaction[]
+  caseOpens     CaseOpen[]
+  withdrawals   Withdrawal[]
+}
+
+model Case {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  description String?
+  price       Float
+  imageUrl    String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  items       CaseItem[]
+  opens       CaseOpen[]
+}
+
+model Skin {
+  id          String   @id @default(cuid())
+  name        String
+  marketHash  String?  // Steam market hash name
+  rarity      String   // Covert, Classified, Restricted, Mil-Spec...
+  price       Float
+  imageUrl    String?
+  steamAssetId String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  caseItems   CaseItem[]
+  inventory   InventoryItem[]
+}
+
+model CaseItem {
+  id        String @id @default(cuid())
+  caseId    String
+  skinId    String
+  chance    Float  // процент шанса (0.01 - 100)
+
+  case      Case  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  skin      Skin  @relation(fields: [skinId], references: [id], onDelete: Cascade)
+
+  @@unique([caseId, skinId])
+}
+
+model InventoryItem {
+  id        String   @id @default(cuid())
+  userId    String
+  skinId    String
+  status    String   @default("available") // available, pending_withdraw, sold
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skin      Skin @relation(fields: [skinId], references: [id])
+}
+
+model CaseOpen {
+  id        String   @id @default(cuid())
+  userId    String
+  caseId    String
+  skinId    String
+  pricePaid Float
+  createdAt DateTime @default(now())
+
+  user      User @relation(fields: [userId], references: [id])
+  case      Case @relation(fields: [caseId], references: [id])
+}
+
+model Transaction {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // deposit, withdraw, case_open, sell, upgrade, referral, promo
+  amount      Float
+  status      String   @default("completed") // pending, completed, failed
+  description String?
+  meta        String?  // JSON
+  createdAt   DateTime @default(now())
+
+  user        User @relation(fields: [userId], references: [id])
+}
+
+model Withdrawal {
+  id          String   @id @default(cuid())
+  userId      String
+  type        String   // skin, balance
+  amount      Float?
+  inventoryItemId String?
+  status      String   @default("pending") // pending, processing, completed, rejected
+  steamTradeUrl String?
+  adminNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User @relation(fields: [userId], references: [id])
+}
+
+model PromoCode {
+  id          String    @id @default(cuid())
+  code        String    @unique
+  type        String    // balance, percent, free_case
+  value       Float
+  maxUses     Int?
+  usedCount   Int       @default(0)
+  isActive    Boolean   @default(true)
+  expiresAt   DateTime?
+  createdAt   DateTime  @default(now())
+}
+
+model SiteSetting {
+  id    String @id @default(cuid())
+  key   String @unique
+  value String
+}
